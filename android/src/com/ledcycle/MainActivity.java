@@ -15,14 +15,18 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
 /**
- * Thin UI over {@link LedService}. Starts the service as a foreground service
- * (so the cycle keeps running with the screen off / app closed) and binds to it
- * to drive the speed / start-colour sliders and mirror the live colour.
+ * UI over {@link LedService}: Start / Stop buttons, live speed and start-colour
+ * sliders, and a colour preview. The service runs as a foreground service, so
+ * once started the cycle continues with the screen off / app closed until
+ * Stop is pressed (here or from the notification).
  */
 public class MainActivity extends Activity {
 
@@ -33,9 +37,11 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private double cycleMinutes = 30.0;
     private float startHueDeg = 0f;
+    private boolean startAfterPermission;
 
     private LinearLayout root, colourArea;
     private TextView speedLabel, hueLabel, status;
+    private Button startBtn, stopBtn;
 
     private LedService service;
     private boolean bound;
@@ -48,12 +54,69 @@ public class MainActivity extends Activity {
         startHueDeg = prefs.getFloat("startHue", 0f);
         buildUi();
 
-        if (needsPermission()) {
-            requestPermissions(permsToRequest(), REQ_PERMS);
-        } else {
-            startAndBind();
-        }
+        if (LedService.RUNNING) bind();   // reflect a cycle already running
+        ui.post(refresh);
     }
+
+    // ---- start / stop ------------------------------------------------------
+
+    private void startCycle() {
+        if (needsPermission()) {
+            startAfterPermission = true;
+            requestPermissions(permsToRequest(), REQ_PERMS);
+            return;
+        }
+        Intent i = new Intent(this, LedService.class);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(i);
+        else startService(i);
+        bind();
+    }
+
+    private void stopCycle() {
+        if (bound) {
+            unbindService(conn);
+            bound = false;
+            service = null;
+        }
+        startService(new Intent(this, LedService.class).setAction(LedService.ACTION_STOP));
+        status.setText("Stopped - strip holds its last colour");
+    }
+
+    private void bind() {
+        bindService(new Intent(this, LedService.class), conn, Context.BIND_AUTO_CREATE);
+    }
+
+    private final ServiceConnection conn = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder b) {
+            service = ((LedService.LocalBinder) b).getService();
+            bound = true;
+            service.setCycleMinutes(cycleMinutes);
+            service.setStartHue(startHueDeg);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            bound = false;
+            service = null;
+        }
+    };
+
+    private final Runnable refresh = new Runnable() {
+        @Override
+        public void run() {
+            boolean running = LedService.RUNNING;
+            startBtn.setEnabled(!running);
+            stopBtn.setEnabled(running);
+            if (running && bound && service != null) {
+                colourArea.setBackgroundColor(service.getCurrentColor());
+                status.setText(service.getStatus());
+            } else if (!running) {
+                colourArea.setBackgroundColor(Color.BLACK);
+            }
+            ui.postDelayed(this, 150);
+        }
+    };
 
     // ---- permissions -------------------------------------------------------
 
@@ -78,53 +141,20 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
         if (req != REQ_PERMS) return;
-        boolean connectGranted = false;
+        boolean granted = false;
         for (int i = 0; i < perms.length; i++) {
             if (Manifest.permission.BLUETOOTH_CONNECT.equals(perms[i])
                     && results[i] == PackageManager.PERMISSION_GRANTED) {
-                connectGranted = true;
+                granted = true;
             }
         }
-        if (connectGranted) startAndBind();
-        else status.setText("Bluetooth permission denied");
+        if (granted && startAfterPermission) {
+            startAfterPermission = false;
+            startCycle();
+        } else if (!granted) {
+            status.setText("Bluetooth permission denied");
+        }
     }
-
-    // ---- service binding ---------------------------------------------------
-
-    private void startAndBind() {
-        Intent i = new Intent(this, LedService.class);
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(i);
-        else startService(i);
-        bindService(i, conn, Context.BIND_AUTO_CREATE);
-    }
-
-    private final ServiceConnection conn = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder b) {
-            service = ((LedService.LocalBinder) b).getService();
-            bound = true;
-            service.setCycleMinutes(cycleMinutes);
-            service.setStartHue(startHueDeg);
-            ui.post(refresh);
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            bound = false;
-            service = null;
-        }
-    };
-
-    private final Runnable refresh = new Runnable() {
-        @Override
-        public void run() {
-            if (bound && service != null) {
-                colourArea.setBackgroundColor(service.getCurrentColor());
-                status.setText(service.getStatus());
-            }
-            ui.postDelayed(this, 150);
-        }
-    };
 
     // ---- UI ----------------------------------------------------------------
 
@@ -137,6 +167,20 @@ public class MainActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackgroundColor(0xCC000000);
         panel.setPadding(36, 48, 36, 36);
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        startBtn = new Button(this);
+        startBtn.setText("Start Cycle");
+        startBtn.setOnClickListener(v -> startCycle());
+        stopBtn = new Button(this);
+        stopBtn.setText("Stop Cycle");
+        stopBtn.setOnClickListener(v -> stopCycle());
+        buttons.addView(startBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        buttons.addView(stopBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        panel.addView(buttons);
 
         speedLabel = label();
         panel.addView(speedLabel);
@@ -175,6 +219,7 @@ public class MainActivity extends Activity {
         panel.addView(hue);
 
         status = label();
+        status.setText("Idle - press Start Cycle");
         panel.addView(status);
         root.addView(panel);
 
@@ -211,7 +256,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         ui.removeCallbacks(refresh);
         if (bound) {
-            unbindService(conn);   // service keeps running (started as foreground)
+            unbindService(conn);   // service keeps running if the cycle is active
             bound = false;
         }
         super.onDestroy();

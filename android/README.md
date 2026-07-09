@@ -24,6 +24,10 @@ sliders and mirror the live colour, and leaves it running when you exit.
 
 ## On-screen controls
 
+- **Start Cycle / Stop Cycle** buttons — the app opens idle; Start launches the
+  foreground service, Stop ends it (the strip holds its last colour). Button
+  state follows the actual service, so it stays correct even if you stop from
+  the notification.
 - **Speed** slider — full-cycle duration, 0.25–60 min, adjustable live. The hue
   is a *phase accumulator* (advanced by `dt/cycle` each tick), so changing speed
   shifts the pace without any colour jump.
@@ -77,10 +81,10 @@ adb shell am start -n com.ledcycle/.MainActivity
 `build.sh` runs javac → d8 → aapt2 link → adds `classes.dex` → zipalign →
 apksigner (using the standard `~/.android/debug.keystore`).
 
-After the first install with the permissions granted, just tap the **LED Cycle**
-icon on the phone. The foreground service keeps the cycle running with the
-screen off / app closed; stop it from the notification's **Stop** action. It
-drives both strips defined in `MACS`.
+After the first install with the permissions granted, tap the **LED Cycle**
+icon and press **Start Cycle**. The foreground service keeps the cycle running
+with the screen off / app closed; stop it with **Stop Cycle** or the
+notification's **Stop** action. It drives both strips defined in `MACS`.
 
 `POST_NOTIFICATIONS` is only for the ongoing-service notification — if it is
 denied the cycle still runs, just without a visible notification. When tapping

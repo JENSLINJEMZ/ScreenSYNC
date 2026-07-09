@@ -65,8 +65,9 @@ adb shell am start -n com.ledcycle/.MainActivity
 
 Set your controller addresses in the `MACS` array at the top of
 [`LedService.java`](android/src/com/ledcycle/LedService.java) first (find them
-with a BLE scanner). Then tap **LED Cycle** — it starts a foreground service and
-keeps cycling with the screen off; stop it from the notification.
+with a BLE scanner). Then open **LED Cycle** and press **Start Cycle** — it runs
+as a foreground service and keeps cycling with the screen off; **Stop Cycle**
+(or the notification) ends it.
 
 ## Protocol reference
 

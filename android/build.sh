@@ -19,7 +19,7 @@ AAPT2="$(ext aapt2)"; D8="$(ext d8)"; ZIPALIGN="$BT/zipalign.exe"; APKSIGNER="$(
 rm -rf "$OUT"; mkdir -p "$OUT/classes"
 
 echo "[1/6] javac"
-javac -classpath "$JAR" -d "$OUT/classes" \
+javac -encoding UTF-8 -classpath "$JAR" -d "$OUT/classes" \
       $(find "$HERE/src" -name '*.java')
 
 echo "[2/6] d8 -> dex"

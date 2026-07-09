@@ -42,6 +42,9 @@ public class LedService extends Service {
     };
     public static final String ACTION_STOP = "com.ledcycle.STOP";
 
+    /** True while the cycle service is active; read by the Activity for button state. */
+    public static volatile boolean RUNNING = false;
+
     private static final long STEP_MS = 200;
     private static final float BRIGHTNESS = 1.0f;
     private static final UUID SVC = UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb");
@@ -95,6 +98,7 @@ public class LedService extends Service {
         }
         if (!running) {
             running = true;
+            RUNNING = true;
             startForeground(NOTIF_ID, buildNotification("Starting…"));
             acquireWake();
             if (adapter != null && adapter.isEnabled()) {
@@ -192,6 +196,7 @@ public class LedService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        RUNNING = false;
         ui.removeCallbacks(tick);
         for (Strip s : strips) s.close();
         if (wake != null && wake.isHeld()) wake.release();
