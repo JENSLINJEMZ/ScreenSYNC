@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Android build output
+android/build/
+*.apk
+*.dex
+
+# Reverse-engineering captures (may contain personal device data)
+*.zip
+bugreport*
+btsnoop*
+tools/phone_verify_result.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

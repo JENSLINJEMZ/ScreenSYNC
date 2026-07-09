@@ -1,0 +1,33 @@
+<!-- nRF Connect automated test: verify LEDDMX-03 protocol frames.
+     Sends power-on, then pure RED, GREEN, BLUE (4 s apart) to the strip.
+     Watch the strip and note which colours appear in which order. -->
+<test-suite>
+    <target id="strip" name="LEDDMX-03-9022" address="41:42:6D:B6:90:22" />
+
+    <test id="verify" description="LEDDMX colour frame verification" target="strip">
+        <connect timeout="20000" />
+        <discover-services timeout="20000" />
+        <write description="Power on"
+               service-uuid="0000ffe0-0000-1000-8000-00805f9b34fb"
+               characteristic-uuid="0000ffe1-0000-1000-8000-00805f9b34fb"
+               type="WRITE_COMMAND" value="7BFF0403FFFFFFFFBF" timeout="5000" />
+        <sleep timeout="2000" />
+        <write description="Frame 1: pure RED (7B FF 07 FF 00 00 00 FF BF)"
+               service-uuid="0000ffe0-0000-1000-8000-00805f9b34fb"
+               characteristic-uuid="0000ffe1-0000-1000-8000-00805f9b34fb"
+               type="WRITE_COMMAND" value="7BFF07FF000000FFBF" timeout="5000" />
+        <sleep timeout="4000" />
+        <write description="Frame 2: pure GREEN (7B FF 07 00 FF 00 00 FF BF)"
+               service-uuid="0000ffe0-0000-1000-8000-00805f9b34fb"
+               characteristic-uuid="0000ffe1-0000-1000-8000-00805f9b34fb"
+               type="WRITE_COMMAND" value="7BFF0700FF0000FFBF" timeout="5000" />
+        <sleep timeout="4000" />
+        <write description="Frame 3: pure BLUE (7B FF 07 00 00 FF 00 FF BF)"
+               service-uuid="0000ffe0-0000-1000-8000-00805f9b34fb"
+               characteristic-uuid="0000ffe1-0000-1000-8000-00805f9b34fb"
+               type="WRITE_COMMAND" value="7BFF070000FF00FFBF" timeout="5000" />
+        <sleep timeout="4000" />
+    </test>
+
+    <run-test ref="verify" description="Verify LEDDMX colour frames" />
+</test-suite>
