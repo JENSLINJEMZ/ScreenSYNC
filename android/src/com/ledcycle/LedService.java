@@ -36,10 +36,10 @@ import java.util.UUID;
  */
 public class LedService extends Service {
 
-    public static final String[] MACS = {
-            "41:42:6D:B6:90:22",   // LEDDMX-03-9022
-            "41:42:95:7A:BF:4D",   // LEDDMX-03-BF4D
-    };
+    /** Address prefix these controllers advertise with; used to filter the scan. */
+    public static final String NAME_PREFIX = "LEDDMX";
+    /** SharedPreferences key holding the user-selected controller addresses. */
+    public static final String PREF_MACS = "macs";
     public static final String ACTION_STOP = "com.ledcycle.STOP";
 
     /** True while the cycle service is active; read by the Activity for button state. */
@@ -87,7 +87,9 @@ public class LedService extends Service {
         startHueDeg = prefs.getFloat("startHue", 0f);
         nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         createChannel();
-        for (String mac : MACS) strips.add(new Strip(mac));
+        for (String mac : prefs.getStringSet(PREF_MACS, java.util.Collections.emptySet())) {
+            strips.add(new Strip(mac));
+        }
     }
 
     @Override

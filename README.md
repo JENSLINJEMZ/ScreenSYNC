@@ -63,11 +63,10 @@ adb shell pm grant com.ledcycle android.permission.POST_NOTIFICATIONS
 adb shell am start -n com.ledcycle/.MainActivity
 ```
 
-Set your controller addresses in the `MACS` array at the top of
-[`LedService.java`](android/src/com/ledcycle/LedService.java) first (find them
-with a BLE scanner). Then open **LED Cycle** and press **Start Cycle** — it runs
-as a foreground service and keeps cycling with the screen off; **Stop Cycle**
-(or the notification) ends it.
+Open **LED Cycle**, press **Scan**, tick the `LEDDMX-*` lights it finds, and
+press **Start** — no addresses to edit, no rebuild. It runs as a foreground
+service and keeps cycling with the screen off; **Stop** (or the notification)
+ends it. Your selection is remembered for next time.
 
 ## Protocol reference
 

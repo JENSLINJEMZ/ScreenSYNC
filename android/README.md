@@ -7,11 +7,12 @@ smooth, continuous, auto-reconnecting.
 
 ## What it does
 
-A **foreground service** (`LedService`) connects to **both** strips at once
-(`LEDDMX-03-9022` and `LEDDMX-03-BF4D`), sends power-on, then walks the hue
-wheel continuously (whole strip = one solid colour) at ~5 Hz. Both strips
-receive the same hue, so they stay in sync. A dropped BLE link reconnects
-automatically and resumes at the correct colour.
+A **foreground service** (`LedService`) connects to the `LEDDMX-*` lights you
+pick (one or several), sends power-on, then walks the hue wheel continuously
+(whole strip = one solid colour) at ~5 Hz. All selected strips receive the same
+hue, so they stay in sync. A dropped BLE link reconnects automatically and
+resumes at the correct colour. No addresses are hardcoded — you choose lights by
+scanning in-app.
 
 Because the loop lives in a foreground service with a **partial wake lock**, it
 **keeps running with the screen off and the app closed** (verified: hue kept
@@ -24,10 +25,13 @@ sliders and mirror the live colour, and leaves it running when you exit.
 
 ## On-screen controls
 
-- **Start Cycle / Stop Cycle** buttons — the app opens idle; Start launches the
-  foreground service, Stop ends it (the strip holds its last colour). Button
-  state follows the actual service, so it stays correct even if you stop from
-  the notification.
+- **Scan** button — discovers nearby `LEDDMX-*` controllers and lists them with
+  name, signal, and address. Tick the ones you want to drive; the selection is
+  saved and reappears next launch. No addresses are hardcoded.
+- **Start / Stop** buttons — the app opens idle; Start launches the foreground
+  service for the ticked lights, Stop ends it (the strip holds its last colour).
+  Button state follows the actual service, so it stays correct even if you stop
+  from the notification.
 - **Speed** slider — full-cycle duration, 0.25–60 min, adjustable live. The hue
   is a *phase accumulator* (advanced by `dt/cycle` each tick), so changing speed
   shifts the pace without any colour jump.
@@ -41,17 +45,18 @@ sliders and mirror the live colour, and leaves it running when you exit.
 Fixed setup is at the top of
 [src/com/ledcycle/LedService.java](src/com/ledcycle/LedService.java):
 
-| Constant     | Meaning                                        |
-|--------------|------------------------------------------------|
-| `MACS`       | array of controller addresses to drive together |
-| `STEP_MS`    | update interval (default 200 ms = 5 Hz)        |
-| `BRIGHTNESS` | HSV value 0..1 (default 1.0)                   |
+| Constant      | Meaning                                       |
+|---------------|-----------------------------------------------|
+| `NAME_PREFIX` | advertised-name prefix the scan filters on (default `LEDDMX`) |
+| `STEP_MS`     | update interval (default 200 ms = 5 Hz)       |
+| `BRIGHTNESS`  | HSV value 0..1 (default 1.0)                   |
 
-Speed and starting colour are runtime controls (sliders), not constants. The
+Lights are chosen at runtime via **Scan** (not hardcoded); speed and starting
+colour are runtime sliders. The
 colour frame is `7B FF 07 RR BB GG 00 FF BF` on characteristic `ffe1` — i.e.
 **colour order R, B, G** (green and blue swapped), verified on hardware: blue
-reads blue and red reads red. To drive only one strip, leave a single entry in
-`MACS`.
+reads blue and red reads red. To drive one strip instead of several, tick just
+that one in the scan list.
 
 **Writes are flow-controlled**: one GATT write is in flight at a time
 (`WRITE_TYPE_DEFAULT`, with response); the next colour is sent only after the
@@ -81,10 +86,10 @@ adb shell am start -n com.ledcycle/.MainActivity
 `build.sh` runs javac → d8 → aapt2 link → adds `classes.dex` → zipalign →
 apksigner (using the standard `~/.android/debug.keystore`).
 
-After the first install with the permissions granted, tap the **LED Cycle**
-icon and press **Start Cycle**. The foreground service keeps the cycle running
-with the screen off / app closed; stop it with **Stop Cycle** or the
-notification's **Stop** action. It drives both strips defined in `MACS`.
+Then open **LED Cycle**, press **Scan**, tick your lights, and press **Start**
+(grant the Bluetooth/notification prompts on first run). The foreground service
+keeps the cycle running with the screen off / app closed; stop it with **Stop**
+or the notification's **Stop** action.
 
 `POST_NOTIFICATIONS` is only for the ongoing-service notification — if it is
 denied the cycle still runs, just without a visible notification. When tapping

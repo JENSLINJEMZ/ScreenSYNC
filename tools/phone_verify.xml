@@ -1,8 +1,10 @@
-<!-- nRF Connect automated test: verify LEDDMX-03 protocol frames.
+<!-- nRF Connect automated test: verify LEDDMX protocol frames.
      Sends power-on, then pure RED, GREEN, BLUE (4 s apart) to the strip.
-     Watch the strip and note which colours appear in which order. -->
+     Watch the strip and note which colours appear in which order.
+     Replace the address below with your controller's (find it with a BLE
+     scanner such as nRF Connect for Mobile). -->
 <test-suite>
-    <target id="strip" name="LEDDMX-03-9022" address="41:42:6D:B6:90:22" />
+    <target id="strip" name="LEDDMX" address="AA:BB:CC:DD:EE:FF" />
 
     <test id="verify" description="LEDDMX colour frame verification" target="strip">
         <connect timeout="20000" />
