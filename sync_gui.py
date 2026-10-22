@@ -37,9 +37,11 @@ MODES = ["GD", "FD", "FW", "FS", "PU", "FL", "HO"]
 DISPLAY_CHOICES = ["zones (edge sync)", "average", "cycle", "off"]
 ORDER_CHOICES = ["rgb", "rbg", "grb", "gbr", "brg", "bgr"]
 EDGE_FRAC = 0.07   # band thickness sampled at each screen edge
+TEST_SIDE_COLORS = {"top": (255, 0, 0), "right": (0, 255, 0),
+                    "bottom": (0, 0, 255), "left": (255, 255, 0)}
 
 DEFAULT_CONFIG = {
-    "monitor": "", "order": "rgb", "rate": 2.0, "brightness": 100.0,
+    "monitor": "", "order": "rgb", "rate": 5.0, "brightness": 100.0,
     "display_mode": "GD",
     "strips": [{
         "mac": "", "name": "", "leds": 40,
@@ -92,6 +94,8 @@ class SyncEngine(threading.Thread):
         self.stop_evt = threading.Event()
         self.lock = threading.Lock()
         self.latest = {"frame": 0, "strips": []}
+        self._last_slots = {}      # mac -> previously uploaded slot colours
+        self._last_mode = {}       # mac -> display mode currently armed
 
     def run(self):
         print("[engine] thread started", file=sys.stderr, flush=True)
@@ -159,7 +163,11 @@ class SyncEngine(threading.Thread):
                     if mode == "off":
                         strips_out.append({"mac": strip.get("mac", ""), "rgb": []})
                     elif mode == "zones":
-                        rgb_list = perimeter_colors(arr, w, h, strip, float(s.get("brightness", 100)))
+                        if s.get("test"):
+                            rgb_list = [apply_brightness(TEST_SIDE_COLORS[side], float(s.get("brightness", 100)))
+                                        for side, _x, _y in perimeter_leds(strip)]
+                        else:
+                            rgb_list = perimeter_colors(arr, w, h, strip, float(s.get("brightness", 100)))
                         strips_out.append({"mac": strip.get("mac", ""), "rgb": rgb_list})
                     else:                              # average | cycle | off
                         rgb = whole_average(arr, float(s.get("brightness", 100)))
@@ -193,9 +201,12 @@ class SyncEngine(threading.Thread):
             try:
                 async with BleakClient(mac, timeout=25) as client:
                     self.on_status(f"{mac[-5:]}: connected")
+                    self._last_slots.pop(mac, None)      # force full refresh
+                    self._last_mode.pop(mac, None)
                     use_resp = not supports_write_without_response(client)
                     backoff = 2.0
                     await client.write_gatt_char(CHAR_UUID, POWER_ON_FRAME, response=use_resp)
+                    await asyncio.sleep(0.3)          # let service cache settle
                     last = -1
                     while not self.stop_evt.is_set():
                         cur = (dict(self.settings).get("strips") or [{}])[idx:idx + 1]
@@ -229,9 +240,24 @@ class SyncEngine(threading.Thread):
         w = lambda b: client.write_gatt_char(CHAR_UUID, b, response=use_resp)
         if strip_mode == "zones":
             n = max(1, len(rgb_list))
+            prev = self._last_slots.get(mac)
+            changed = []
             for pos, rgb in enumerate(rgb_list, start=1):
+                # only re-upload slots whose colour moved enough to matter
+                if not prev or pos > len(prev):
+                    changed.append((pos, rgb))
+                else:
+                    pr, pg, pb = prev[pos - 1]
+                    if abs(rgb[0] - pr) + abs(rgb[1] - pg) + abs(rgb[2] - pb) > 3:
+                        changed.append((pos, rgb))
+            for pos, rgb in changed:
                 await w(list_color_frame(pos, rgb, n, order))
-            await w(mode_frame(s.get("display_mode") or "GD"))
+            self._last_slots[mac] = list(rgb_list)
+            # (re)arm the display mode only when actually different
+            cur_mode = s.get("display_mode") or "GD"
+            if self._last_mode.get(mac) != cur_mode:
+                await w(mode_frame(cur_mode))
+                self._last_mode[mac] = cur_mode
         else:
             r, g, b = rgb_list[0]
             await w(build_color_frame(r, g, b, order))
@@ -512,6 +538,11 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.combo_order.set_active(ORDER_CHOICES.index(self.cfg.get("order", "rgb")))
         self.combo_order.connect("changed", self.on_any_change)
 
+        self.chk_test = Gtk.CheckButton(label="Test pattern (red top / green right / blue bottom / yellow left)")
+        self.chk_test.set_active(bool(self.cfg.get("test")))
+        self.chk_test.connect("toggled", self.on_test_toggle)
+        g.append(self.chk_test)
+
         scan_row = Gtk.Button(label="🔍  Scan strips")
         scan_row.connect("clicked", self.on_scan)
         scan_row.add_css_class("pill")
@@ -671,6 +702,10 @@ class StudioWindow(Gtk.ApplicationWindow):
     def on_any_change(self, w=None):
         self.sync_setting()
 
+    def on_test_toggle(self, w):
+        self.cfg["test"] = bool(w.get_active())
+        self.save_config()
+
     def on_mac_changed(self, combo):
         idx = combo._strip_idx if hasattr(combo, "_strip_idx") else 0
         txt = combo.get_active_text()
@@ -820,6 +855,8 @@ class StudioWindow(Gtk.ApplicationWindow):
             weights = {"top": m_w, "bottom": m_w, "left": m_h, "right": m_h}
             leds = perimeter_leds(strip, weights)
             rgb_list = self.live.get(strip.get("mac", "")) or []
+            if self.cfg.get("test"):
+                rgb_list = [TEST_SIDE_COLORS[side] for side, _fx, _fy in leds]
             for i, (side, fx, fy) in enumerate(leds):
                 px = mx + fx * m_w
                 py = my + fy * m_h
