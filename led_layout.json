@@ -1,0 +1,24 @@
+{
+  "monitor": "DP-2",
+  "order": "rgb",
+  "rate": 2.0,
+  "brightness": 100.0,
+  "display_mode": "GD",
+  "strips": [
+    {
+      "mac": "41:42:2C:C2:1E:13",
+      "name": "LEDDMX-03-1E13",
+      "leds": 40,
+      "start_corner": "top-left",
+      "direction": "clockwise",
+      "sides": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "reverse": false,
+      "display": "zones (edge sync)"
+    }
+  ]
+}
