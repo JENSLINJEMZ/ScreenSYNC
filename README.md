@@ -13,8 +13,8 @@ yourself.
 
 |  |  |
 |---|---|
-| **Recommended (works today)** | [Android app](android/) — native, background foreground-service, live speed + start-colour controls, two strips at once |
-| **Also included** | Python (`bleak`) scripts + protocol reverse-engineering tools for Linux/BlueZ or a USB BLE dongle |
+| **Recommended (works today)** | [Android app](android/) — native, background foreground-service, **SignalRGB-style screen sync**, live speed + start-colour controls, Layout screen with per-light sync, two strips at once |
+| **Also included** | Python (`bleak`) scripts for **PC screen sync on Linux** (Wayland/X11) + protocol reverse-engineering tools |
 
 ## Hardware compatibility
 
@@ -40,8 +40,10 @@ units above use byte order **R, B, G** (green and blue swapped), which is the
 default here. If your colours come out wrong — a classic sign is **blue showing
 as green** and **orange showing as pink** — switch the order:
 
-- **Android:** edit the frame in [`LedService.java`](android/src/com/ledcycle/LedService.java)
-  (the `frame` byte array in the tick loop) to reorder the three colour bytes.
+- **Android:** press the **Order** button (main screen) until colours are
+  correct — it cycles `RGB → RBG → GBR → GRB → BRG → BGR` live and remembers
+  the choice. The app defaults to **RGB**; the older verified build sent
+  **RBG**, so if blue shows as green, tap until it doesn't.
 - **Python:** pass `--color-order` (`rgb`, `rbg`, `grb`, `gbr`, `brg`, `bgr`) to
   `led_cycle.py`. Calibrate with `python led_cycle.py --test red` and adjust
   until red shows red, then confirm with `--test green`.
@@ -67,6 +69,30 @@ Open **LED Cycle**, press **Scan**, tick the `LEDDMX-*` lights it finds, and
 press **Start** — no addresses to edit, no rebuild. It runs as a foreground
 service and keeps cycling with the screen off; **Stop** (or the notification)
 ends it. Your selection is remembered for next time.
+
+### Layout screen — live screen sync
+
+Press **Layout** for a view where every light is a tile that mirrors exactly
+what the app sends to that strip, updating ~6×/s (live screen sync). Each light
+is controlled independently:
+
+- **Cycle ✓ / ✗** — follow the shared hue cycle, or break out of it,
+- **Colour** — pin the light to its own static colour (hue + level sliders),
+- **On / Off** — show black without touching the others.
+
+Changes apply live while the cycle runs and are remembered across restarts.
+
+### Screen sync (SignalRGB-style)
+
+Press **Screen** on the main screen and confirm the system "recording or
+casting" dialog — the app then captures the phone screen at ~6 fps and mirrors
+its colours onto the strips over BLE:
+
+- **One strip = whole-screen average colour.**
+- **Multiple strips = vertical bands**, so a strip wall shows the screen like
+  SignalRGB's ambient modes do.
+- Works with anything on screen — videos, games, browsers.
+- Press **Screen** again to switch it back to the hue cycle.
 
 ## Protocol reference
 
@@ -96,6 +122,7 @@ Pure-`bleak` implementation and the tools used to reverse-engineer the protocol:
 | File | Purpose |
 |------|---------|
 | [`led_cycle.py`](led_cycle.py) | the hue-cycle effect (CLI: `--mac`, `--cycle-minutes`, `--brightness`, `--color-order`, `--test`) |
+| [`screen_sync.py`](screen_sync.py) | **SignalRGB-style screen sync for Linux** — mirror the PC screen onto the strips |
 | [`tools/scan.py`](tools/scan.py) | find `LEDDMX-*` devices, dump their GATT table |
 | [`tools/send_test.py`](tools/send_test.py) | write one frame (colour or raw hex) for testing |
 | [`tools/parse_btsnoop.py`](tools/parse_btsnoop.py) | extract ATT writes from an Android HCI snoop log / bugreport zip |
@@ -110,6 +137,41 @@ python led_cycle.py --cycle-minutes 30 --color-order rbg
 
 The controller accepts **one connection at a time** — close the phone app (and
 the Android app of this project) before connecting from a computer.
+
+### Screen sync for Linux — `screen_sync.py`
+
+The same engine the Android app's **Screen** button uses, ported to the PC:
+grab the screen N times per second, average it per strip (whole screen with
+one strip, vertical bands left→right with several), and stream colour frames
+over BLE. Works out of the box on Wayland compositors based on
+**wlroots** — Hyprland, Sway, river, … (via `grim`) — and on X11 (via
+ImageMagick `import`).
+
+```bash
+pip install -r requirements.txt          # bleak (numpy is optional & speeds up averaging)
+
+python3 screen_sync.py                                   # auto-find strips, whole screen
+python3 screen_sync.py --mac 41:42:2C:C2:1E:13           # one strip
+python3 screen_sync.py --mac A1 --mac B2                 # strips as vertical bands
+python3 screen_sync.py --rate 10 --monitor DP-1          # main monitor only, 10 fps
+
+python3 screen_sync.py --capture-test 5                  # no-BLE sanity check:
+                                                         # prints grabbed colours + timing
+```
+
+Options that matter:
+
+- `--monitor NAME` — capture one output (`hyprctl monitors` shows the names);
+  default averages every monitor into one colour.
+- `--rate` — captures per second (default 5).
+- `--gamma 1` (default) mirrors the screen exactly; `--gamma 2.2` is a
+  perceptual variant that dims dark desktops (nicer at night).
+- `--color-order` — same meanings as `led_cycle.py`; default `rgb`.
+- `LEDSYNC_DEBUG=1` — log the per-strip colour every frame.
+
+Stop with **Ctrl+C**; the strip keeps its last colour. If the first connection
+fails with *"Device … not found"*, the adapter was cold — rerun (the script
+warms the adapter up with a short `bluetoothctl scan` automatically).
 
 ### ⚠️ Windows is not supported for the Python path
 
@@ -129,10 +191,11 @@ that's why it's the recommended path.
 ## Repository layout
 
 ```
-android/          native Android app (the working, recommended solution)
-led_cycle.py      Python hue-cycle effect (Linux/BlueZ or USB dongle)
-tools/            BLE scanner, frame sender, HCI-snoop parser, phone verifier
-requirements.txt  Python deps (bleak)
+android/           native Android app (the working, recommended solution)
+led_cycle.py       Python hue-cycle effect (Linux/BlueZ or USB dongle)
+screen_sync.py     Python PC screen sync (Linux/BlueZ, wlroots Wayland or X11)
+tools/             BLE scanner, frame sender, HCI-snoop parser, phone verifier
+requirements.txt   Python deps (bleak)
 ```
 
 ## Credits

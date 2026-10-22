@@ -28,7 +28,7 @@ echo "[2/6] d8 -> dex"
 echo "[3/6] aapt2 link -> base.apk (manifest only, no res)"
 "$AAPT2" link -o "$OUT/base.apk" -I "$JAR" \
       --manifest "$HERE/AndroidManifest.xml" \
-      --min-sdk-version 31 --target-sdk-version 34
+      --min-sdk-version 30 --target-sdk-version 34
 
 echo "[4/6] add classes.dex"
 ( cd "$OUT" && jar uf base.apk classes.dex )

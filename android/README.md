@@ -22,6 +22,7 @@ tapping the notification reopens the controls. Intended to run on charge.
 
 `MainActivity` is just the UI: it starts the service, binds to it to drive the
 sliders and mirror the live colour, and leaves it running when you exit.
+`LayoutActivity` (the **Layout** button) is the per-light view below.
 
 ## On-screen controls
 
@@ -39,6 +40,26 @@ sliders and mirror the live colour, and leaves it running when you exit.
   this colour; dragging it shifts the colour live.
 - Both settings persist across restarts (SharedPreferences).
 - Status line shows current hue/rgb and per-strip state (`022:on  F4D:on`).
+- **Layout** button — opens the Layout screen: one live-sync tile per light
+  (the screen mirrors exactly what is being sent to that strip, ~6×/s) and
+  individual controls for each light — **Cycle ✓/✗** (follow the shared cycle or
+  break out), **Colour** (pin that light to its own static colour with hue +
+  level sliders), **On/Off** (show black). Edits apply live while the cycle
+  runs and are saved to `layout` in SharedPreferences (`mac,follow,on,rrggbb;…`).
+- **Order** button (third in the second button row) — the colour-slot order the
+  strip expects: the `7B FF 07 c1 c2 c3 00 FF BF` frame's three colour bytes
+  are mapped per the chosen order. Cycles through all six orders live and
+  persists in `colorOrder` in SharedPreferences. Default `rgb`; the original
+  reverse-engineered build sent `rbg` (the mapping differs between strip
+  batches — green showing as blue means the order needs changing).
+- **Screen** button — SignalRGB-style screen sync: after the system
+  "recording or casting" dialog, a `MediaProjection` mirror (320px-wide
+  `ImageReader` virtual display, ~6 fps) is averaged per light and pushed at
+  the usual tick. The foreground service is re-published with the
+  `mediaProjection` type before the projection token is taken — required on
+  Android 10+ or the system kills the projection after one frame. One strip
+  mirrors the whole screen; several strips split it into vertical bands. Press
+  **Screen** again to fall back to the cycle.
 
 ## Configuration (code)
 
